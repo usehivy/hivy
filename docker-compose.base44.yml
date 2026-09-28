@@ -1,0 +1,56 @@
+# Base44 override — adapts the repo's dev compose for the Base44 preview.
+# Used together with the repo's own docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.base44.yml up -d --build
+#
+# The repo compose is already dev-oriented (air live-reload for Go, next dev for
+# the frontend, bind-mounted source). This override:
+#   1. Repoints browser-facing URLs (CORS, frontend URL, public API URL) to the
+#      Base44 preview origin so the proxied browser reaches the right hosts.
+#   2. Passes BASE44_PUBLIC_HOST_SUFFIX into the web container so next.config.ts
+#      can add it to allowedDevOrigins (Next blocks the preview origin's HMR /
+#      dev-asset requests otherwise).
+#   3. Drops the minio/minio-setup dependency — the minio Docker Hub images are
+#      not pullable in this environment. The S3 client is lazy (AWS SDK), so the
+#      API starts and passes /healthz without it. RAG filestore features are
+#      unavailable until minio is restored.
+# Port bindings (web→3000, api→8000) and bind IP (0.0.0.0) are set in .env.
+
+services:
+  api:
+    environment:
+      HIVY_FRONTEND_URL: https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+      HIVY_CORS_ORIGINS: https://3000-${BASE44_PUBLIC_HOST_SUFFIX}
+    depends_on: !reset
+      postgres:
+        condition: service_healthy
+      redis-cluster-init:
+        condition: service_completed_successfully
+      nango:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  worker:
+    depends_on: !reset
+      postgres:
+        condition: service_healthy
+      redis-cluster-init:
+        condition: service_completed_successfully
+      nango:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  web:
+    environment:
+      HIVY_PUBLIC_API_URL: https://8000-${BASE44_PUBLIC_HOST_SUFFIX}
+      HIVY_CONNECTIONS_HOST: https://23003-${BASE44_PUBLIC_HOST_SUFFIX}
+      BASE44_PUBLIC_HOST_SUFFIX: ${BASE44_PUBLIC_HOST_SUFFIX}
+
+  minio:
+    image: scratch
+    profiles: ["disabled"]
+
+  minio-setup:
+    image: scratch
+    profiles: ["disabled"]

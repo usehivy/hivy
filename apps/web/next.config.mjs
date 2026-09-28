@@ -36,6 +36,10 @@ const nextConfig = {
   },
   reactStrictMode: false,
   skipTrailingSlashRedirect: true,
+  // Base44 preview: allow the sandbox preview origin for dev assets/HMR.
+  allowedDevOrigins: process.env.BASE44_PUBLIC_HOST_SUFFIX
+    ? ["3000-" + process.env.BASE44_PUBLIC_HOST_SUFFIX]
+    : [],
 }
 
 export default withSentryConfig(nextConfig, {
